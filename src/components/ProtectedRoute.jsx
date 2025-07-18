@@ -26,6 +26,7 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
     return <Navigate to={redirectPath} replace />;
   }
 
+  // Show loading spinner while authentication state is being determined
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -34,7 +35,8 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
     );
   }
 
-  if (!isAuthenticated) {
+  // Only redirect if loading is complete AND user is not authenticated
+  if (!loading && !isAuthenticated) {
     const redirectPath = isDemoMode ? "/demo" : "/login";
     return <Navigate to={redirectPath} replace />;
   }

@@ -22,14 +22,22 @@ export const AuthProvider = ({ children }) => {
       const savedUser = getCurrentUser();
 
       if (token && savedUser) {
+        // First, set the user from localStorage to avoid loading delay
+        setUser(savedUser);
+        setIsAuthenticated(true);
+
         try {
-          // Verify token is still valid
+          // Then verify token is still valid in the background
           const response = await authAPI.getCurrentUser();
+          // Update user data if API call succeeds
           setUser(response.data.user);
-          setIsAuthenticated(true);
         } catch (error) {
-          // Token is invalid, clear storage
-          logout();
+          console.warn('Token verification failed:', error.message);
+          // Only logout if it's a 401 (unauthorized) error
+          if (error.response?.status === 401) {
+            logout();
+          }
+          // For other errors (network issues, etc.), keep the user logged in
         }
       }
       setLoading(false);
