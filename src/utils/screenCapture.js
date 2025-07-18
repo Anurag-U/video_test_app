@@ -9,6 +9,8 @@ class ScreenCaptureService {
     this.audioChunks = [];
     this.isRecordingAudio = false;
     this.audioCallback = null;
+    this.version = '2.0.0'; // Version to verify we have the updated class
+    console.log('ScreenCaptureService v2.0.0 initialized with audio support');
   }
 
   async startScreenCapture(options = {}) {

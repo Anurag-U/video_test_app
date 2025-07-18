@@ -90,13 +90,87 @@ const StudentDashboard = () => {
       setHasAudio(screenCaptureService.hasAudio());
       console.log('Audio capture info:', audioInfo);
 
+      // Debug: Check version and methods
+      console.log('ScreenCaptureService version:', screenCaptureService.version);
+      console.log('screenCaptureService methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(screenCaptureService)));
+      console.log('setAudioCallback exists:', typeof screenCaptureService.setAudioCallback);
+
       // Set up audio streaming callback
-      screenCaptureService.setAudioCallback((audioData) => {
-        if (audioData) {
-          console.log('StudentDashboard: Sending audio data, size:', audioData.length);
-          socketService.sendAudioData(audioData);
+      if (typeof screenCaptureService.setAudioCallback === 'function') {
+        screenCaptureService.setAudioCallback((audioData) => {
+          if (audioData) {
+            console.log('StudentDashboard: Sending audio data, size:', audioData.length);
+            socketService.sendAudioData(audioData);
+          }
+        });
+      } else {
+        console.error('setAudioCallback method not found on screenCaptureService');
+        // Fallback: Add the missing audio methods manually
+        console.log('Adding missing audio methods to screenCaptureService');
+
+        // Initialize audio properties if they don't exist
+        if (typeof screenCaptureService.audioCallback === 'undefined') {
+          screenCaptureService.audioCallback = null;
         }
-      });
+        if (typeof screenCaptureService.isRecordingAudio === 'undefined') {
+          screenCaptureService.isRecordingAudio = false;
+        }
+        if (typeof screenCaptureService.mediaRecorder === 'undefined') {
+          screenCaptureService.mediaRecorder = null;
+        }
+
+        screenCaptureService.setAudioCallback = function(callback) {
+          this.audioCallback = callback;
+          console.log('Added setAudioCallback method manually');
+        };
+
+        // Add other missing audio methods if they don't exist
+        if (!screenCaptureService.startAudioRecording) {
+          screenCaptureService.startAudioRecording = function() {
+            if (!this.hasAudio() || this.isRecordingAudio) return;
+
+            try {
+              const audioStream = new MediaStream(this.mediaStream.getAudioTracks());
+              this.mediaRecorder = new MediaRecorder(audioStream, {
+                mimeType: 'audio/webm;codecs=opus',
+                audioBitsPerSecond: 64000
+              });
+
+              this.isRecordingAudio = true;
+
+              this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0 && this.audioCallback) {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    this.audioCallback(reader.result);
+                  };
+                  reader.readAsDataURL(event.data);
+                }
+              };
+
+              this.mediaRecorder.start(500);
+              console.log('Audio recording started (fallback method)');
+            } catch (error) {
+              console.error('Failed to start audio recording:', error);
+            }
+          };
+        }
+        // Try again
+        screenCaptureService.setAudioCallback((audioData) => {
+          if (audioData) {
+            console.log('StudentDashboard: Sending audio data, size:', audioData.length);
+            socketService.sendAudioData(audioData);
+          }
+        });
+
+        // Manually start audio recording if it has audio
+        if (screenCaptureService.hasAudio()) {
+          console.log('Manually starting audio recording...');
+          if (screenCaptureService.startAudioRecording) {
+            screenCaptureService.startAudioRecording();
+          }
+        }
+      }
 
       // Wait a moment for video to be fully ready, then start capturing
       setTimeout(() => {
