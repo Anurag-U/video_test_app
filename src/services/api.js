@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'https://videoappbackend-production.up.railway.app/api';
 
 // Create axios instance
 const api = axios.create({
