@@ -90,6 +90,14 @@ const StudentDashboard = () => {
       setHasAudio(screenCaptureService.hasAudio());
       console.log('Audio capture info:', audioInfo);
 
+      // Set up audio streaming callback
+      screenCaptureService.setAudioCallback((audioData) => {
+        if (audioData) {
+          console.log('StudentDashboard: Sending audio data, size:', audioData.length);
+          socketService.sendAudioData(audioData);
+        }
+      });
+
       // Wait a moment for video to be fully ready, then start capturing
       setTimeout(() => {
         captureIntervalRef.current = screenCaptureService.startFrameCapture((frameData) => {

@@ -120,6 +120,12 @@ class SocketService {
     this.emit('screen-data', data);
   }
 
+  // Send audio data (for students)
+  sendAudioData(audioData) {
+    console.log('SocketService: Sending audio data, size:', audioData?.length);
+    this.emit('audio-data', audioData);
+  }
+
   // WebRTC signaling methods
   sendOffer(targetSocketId, offer) {
     this.emit('offer', { targetSocketId, offer });
@@ -148,6 +154,11 @@ class SocketService {
 
   onStudentScreen(callback) {
     this.on('student-screen', callback);
+  }
+
+  // Listen for student audio data (for admins)
+  onStudentAudio(callback) {
+    this.on('student-audio', callback);
   }
 
   // Listen for WebRTC signaling

@@ -26,6 +26,7 @@ const AdminDashboard = () => {
   }
   const [students, setStudents] = useState([]);
   const [studentScreens, setStudentScreens] = useState(new Map());
+  const [studentAudio, setStudentAudio] = useState(new Map()); // Map of socketId -> audio element
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
 
   useEffect(() => {
@@ -95,7 +96,73 @@ const AdminDashboard = () => {
       });
     });
 
+    // Listen for student audio data
+    socketService.onStudentAudio(({ studentId, studentName, socketId, audioData }) => {
+      console.log('AdminDashboard: Received audio data from:', studentName, 'size:', audioData?.length);
+
+      // Create or get audio element for this student
+      setStudentAudio(prev => {
+        const newMap = new Map(prev);
+        let audioElement = newMap.get(socketId);
+
+        if (!audioElement) {
+          // Create new audio element for this student
+          audioElement = document.createElement('audio');
+          audioElement.autoplay = true;
+          audioElement.volume = 0.8;
+          audioElement.controls = false;
+
+          // Add to DOM (hidden)
+          audioElement.style.display = 'none';
+          document.body.appendChild(audioElement);
+
+          console.log('AdminDashboard: Created audio element for:', studentName);
+        }
+
+        // Convert base64 audio data to blob and play
+        try {
+          // Extract base64 data (remove data:audio/webm;base64, prefix)
+          const base64Data = audioData.split(',')[1];
+          const binaryData = atob(base64Data);
+          const arrayBuffer = new ArrayBuffer(binaryData.length);
+          const uint8Array = new Uint8Array(arrayBuffer);
+
+          for (let i = 0; i < binaryData.length; i++) {
+            uint8Array[i] = binaryData.charCodeAt(i);
+          }
+
+          const blob = new Blob([arrayBuffer], { type: 'audio/webm' });
+          const audioUrl = URL.createObjectURL(blob);
+
+          // Play the audio
+          audioElement.src = audioUrl;
+          audioElement.play().catch(error => {
+            console.warn('AdminDashboard: Audio play failed:', error);
+          });
+
+          // Clean up old URL after a delay
+          setTimeout(() => {
+            URL.revokeObjectURL(audioUrl);
+          }, 5000);
+
+        } catch (error) {
+          console.error('AdminDashboard: Error processing audio data:', error);
+        }
+
+        newMap.set(socketId, audioElement);
+        return newMap;
+      });
+    });
+
     return () => {
+      // Clean up audio elements
+      studentAudio.forEach((audioElement) => {
+        if (audioElement && audioElement.parentNode) {
+          audioElement.pause();
+          audioElement.parentNode.removeChild(audioElement);
+        }
+      });
+
       socketService.disconnect();
     };
   }, [user]);
@@ -117,18 +184,33 @@ const AdminDashboard = () => {
   };
 
   const StudentScreenCard = ({ student, screenData }) => {
+    const hasAudio = studentAudio.has(student.socketId);
+
     return (
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="px-4 py-3 bg-gray-50 border-b">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-gray-900">{student.name}</h3>
-            <div className="flex items-center">
-              <div className={`w-2 h-2 rounded-full mr-2 ${
-                screenData ? 'bg-green-500' : 'bg-gray-400'
-              }`}></div>
-              <span className="text-xs text-gray-600">
-                {screenData ? 'Active' : 'Inactive'}
-              </span>
+            <div className="flex items-center space-x-3">
+              {/* Screen Status */}
+              <div className="flex items-center">
+                <div className={`w-2 h-2 rounded-full mr-1 ${
+                  screenData ? 'bg-green-500' : 'bg-gray-400'
+                }`}></div>
+                <span className="text-xs text-gray-600">
+                  {screenData ? 'Video' : 'No Video'}
+                </span>
+              </div>
+
+              {/* Audio Status */}
+              <div className="flex items-center">
+                <div className={`w-2 h-2 rounded-full mr-1 ${
+                  hasAudio ? 'bg-blue-500' : 'bg-gray-400'
+                }`}></div>
+                <span className="text-xs text-gray-600">
+                  {hasAudio ? 'Audio' : 'No Audio'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -169,6 +251,28 @@ const AdminDashboard = () => {
             <div className="text-center text-gray-500">
               <div className="text-4xl mb-2">📺</div>
               <p className="text-sm">No screen data</p>
+            </div>
+          )}
+
+          {/* Audio Controls Overlay */}
+          {hasAudio && (
+            <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs flex items-center">
+              <div className="w-2 h-2 bg-blue-400 rounded-full mr-1 animate-pulse"></div>
+              <span>🔊 Audio Active</span>
+              <button
+                onClick={() => {
+                  const audioElement = studentAudio.get(student.socketId);
+                  if (audioElement) {
+                    audioElement.muted = !audioElement.muted;
+                    // Force re-render by updating state
+                    setStudentAudio(new Map(studentAudio));
+                  }
+                }}
+                className="ml-2 text-xs hover:text-yellow-300"
+                title="Toggle Mute"
+              >
+                {studentAudio.get(student.socketId)?.muted ? '🔇' : '🔊'}
+              </button>
             </div>
           )}
         </div>

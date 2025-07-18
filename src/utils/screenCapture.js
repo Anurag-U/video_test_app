@@ -5,6 +5,10 @@ class ScreenCaptureService {
     this.canvas = null;
     this.context = null;
     this.video = null;
+    this.mediaRecorder = null;
+    this.audioChunks = [];
+    this.isRecordingAudio = false;
+    this.audioCallback = null;
   }
 
   async startScreenCapture(options = {}) {
@@ -166,6 +170,11 @@ class ScreenCaptureService {
         console.warn('ScreenCapture: Test capture failed, but continuing...');
       }
 
+      // Start audio recording if audio tracks are available
+      if (this.hasAudio()) {
+        this.startAudioRecording();
+      }
+
       return true;
     } catch (error) {
       console.error('ScreenCapture: Error starting screen capture:', error);
@@ -184,7 +193,76 @@ class ScreenCaptureService {
     }
   }
 
+  // Start audio recording for streaming
+  startAudioRecording() {
+    if (!this.hasAudio() || this.isRecordingAudio) {
+      return;
+    }
+
+    try {
+      // Create audio-only stream from the main stream
+      const audioStream = new MediaStream(this.mediaStream.getAudioTracks());
+
+      // Configure MediaRecorder for audio streaming
+      this.mediaRecorder = new MediaRecorder(audioStream, {
+        mimeType: 'audio/webm;codecs=opus', // Good compression and quality
+        audioBitsPerSecond: 64000 // 64kbps for good quality/bandwidth balance
+      });
+
+      this.audioChunks = [];
+      this.isRecordingAudio = true;
+
+      // Handle audio data availability
+      this.mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          console.log('ScreenCapture: Audio chunk received, size:', event.data.size);
+
+          // Convert blob to base64 for transmission
+          const reader = new FileReader();
+          reader.onload = () => {
+            const audioData = reader.result; // base64 string
+            if (this.audioCallback) {
+              this.audioCallback(audioData);
+            }
+          };
+          reader.readAsDataURL(event.data);
+        }
+      };
+
+      this.mediaRecorder.onerror = (event) => {
+        console.error('ScreenCapture: MediaRecorder error:', event.error);
+      };
+
+      // Start recording with small chunks for real-time streaming
+      this.mediaRecorder.start(500); // 500ms chunks for low latency
+      console.log('ScreenCapture: Audio recording started');
+
+    } catch (error) {
+      console.error('ScreenCapture: Failed to start audio recording:', error);
+      this.isRecordingAudio = false;
+    }
+  }
+
+  // Stop audio recording
+  stopAudioRecording() {
+    if (this.mediaRecorder && this.isRecordingAudio) {
+      this.mediaRecorder.stop();
+      this.mediaRecorder = null;
+      this.isRecordingAudio = false;
+      this.audioChunks = [];
+      console.log('ScreenCapture: Audio recording stopped');
+    }
+  }
+
+  // Set callback for audio data
+  setAudioCallback(callback) {
+    this.audioCallback = callback;
+  }
+
   cleanup() {
+    // Stop audio recording
+    this.stopAudioRecording();
+
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
@@ -201,6 +279,7 @@ class ScreenCaptureService {
     this.canvas = null;
     this.context = null;
     this.isCapturing = false;
+    this.audioCallback = null;
   }
 
   stopScreenCapture() {
