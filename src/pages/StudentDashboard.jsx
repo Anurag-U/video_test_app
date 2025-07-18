@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useDemoAuth } from '../hooks/useDemoAuth.jsx';
 import socketService from '../services/socket';
 import ScreenCaptureService from '../utils/screenCapture';
+import { testBackendConnection } from '../utils/connectionTest.js';
 
 const StudentDashboard = () => {
   const isDemoMode = localStorage.getItem('demoMode') === 'true';
@@ -33,6 +34,9 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     console.log('StudentDashboard: Initializing with user:', user);
+
+    // Test backend connection first
+    testBackendConnection();
 
     // Connect to socket server
     socketService.connect();
@@ -198,6 +202,39 @@ const StudentDashboard = () => {
                       Stop Sharing
                     </button>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Debug/Connection Test Card */}
+          <div className="mt-6 bg-gray-50 overflow-hidden shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                Connection Debug
+              </h3>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    console.log('🔍 Manual connection test triggered');
+                    testBackendConnection();
+                    console.log('Socket status:', socketService.getConnectionStatus());
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                >
+                  Test Connection
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('🔄 Manual socket reconnection triggered');
+                    socketService.ensureConnection();
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                >
+                  Reconnect Socket
+                </button>
+                <div className="text-sm text-gray-600">
+                  Check browser console for detailed logs
                 </div>
               </div>
             </div>

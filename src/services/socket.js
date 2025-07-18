@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import config from '../config/config.js';
 
 class SocketService {
   constructor() {
@@ -6,27 +7,55 @@ class SocketService {
     this.isConnected = false;
   }
 
-  connect(serverUrl = 'https://video-app-backend-mf7n.vercel.app/') {
+  
+  connect(serverUrl = config.SOCKET_URL) {
+    console.log('🚀 Attempting to connect to socket server:', serverUrl);
+
     if (this.socket) {
       this.disconnect();
     }
 
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
+      timeout: 20000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      maxReconnectionAttempts: 5,
+      // Add CORS and additional options for better compatibility
+      withCredentials: false,
+      autoConnect: true
     });
 
     this.socket.on('connect', () => {
-      console.log('Connected to server');
+      console.log('✅ Socket connected to server:', serverUrl);
       this.isConnected = true;
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from server');
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Socket disconnected from server:', reason);
       this.isConnected = false;
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('Connection error:', error);
+      console.error('🔥 Socket connection error:', error.message || error);
+      console.error('Server URL:', serverUrl);
+      this.isConnected = false;
+    });
+
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log('🔄 Socket reconnected after', attemptNumber, 'attempts');
+      this.isConnected = true;
+    });
+
+    this.socket.on('reconnect_error', (error) => {
+      console.error('🔥 Socket reconnection error:', error.message || error);
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.error('💀 Socket reconnection failed - giving up');
+      this.isConnected = false;
     });
 
     return this.socket;
@@ -34,10 +63,29 @@ class SocketService {
 
   disconnect() {
     if (this.socket) {
+      console.log('🔌 Manually disconnecting socket');
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
     }
+  }
+
+  // Check if socket is connected and attempt reconnection if needed
+  ensureConnection() {
+    if (!this.socket || !this.isConnected) {
+      console.log('🔄 Socket not connected, attempting to reconnect...');
+      this.connect();
+    }
+    return this.isConnected;
+  }
+
+  // Get current connection status
+  getConnectionStatus() {
+    return {
+      isConnected: this.isConnected,
+      socketExists: !!this.socket,
+      socketConnected: this.socket?.connected || false
+    };
   }
 
   emit(event, data) {
