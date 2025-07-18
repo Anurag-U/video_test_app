@@ -6,7 +6,7 @@ class SocketService {
     this.isConnected = false;
   }
 
-  connect(serverUrl = 'http://localhost:3001') {
+  connect(serverUrl = 'https://video-app-backend-mf7n.vercel.app/') {
     if (this.socket) {
       this.disconnect();
     }
