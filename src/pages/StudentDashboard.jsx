@@ -29,6 +29,12 @@ const StudentDashboard = () => {
   const [isSharing, setIsSharing] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [error, setError] = useState('');
+  const [audioOptions, setAudioOptions] = useState({
+    captureSystemAudio: true,
+    captureMicrophone: false,
+    audioQuality: 'medium'
+  });
+  const [hasAudio, setHasAudio] = useState(false);
   const [screenCaptureService] = useState(() => new ScreenCaptureService());
   const captureIntervalRef = useRef(null);
 
@@ -70,13 +76,19 @@ const StudentDashboard = () => {
   const startScreenSharing = async () => {
     try {
       setError('');
-      
+
       if (!ScreenCaptureService.isSupported()) {
         throw new Error('Screen capture is not supported in this browser');
       }
 
-      await screenCaptureService.startScreenCapture();
+      // Start screen capture with audio options
+      await screenCaptureService.startScreenCapture(audioOptions);
       setIsSharing(true);
+
+      // Check if audio was successfully captured
+      const audioInfo = screenCaptureService.getAudioInfo();
+      setHasAudio(screenCaptureService.hasAudio());
+      console.log('Audio capture info:', audioInfo);
 
       // Wait a moment for video to be fully ready, then start capturing
       setTimeout(() => {
@@ -102,6 +114,7 @@ const StudentDashboard = () => {
 
     screenCaptureService.stopScreenCapture();
     setIsSharing(false);
+    setHasAudio(false);
   };
 
   const handleLogout = () => {
@@ -164,6 +177,78 @@ const StudentDashboard = () => {
               {error && (
                 <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
                   {error}
+                </div>
+              )}
+
+              {/* Audio Options */}
+              {!isSharing && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Audio Capture Options</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <input
+                        id="system-audio"
+                        type="checkbox"
+                        checked={audioOptions.captureSystemAudio}
+                        onChange={(e) => setAudioOptions(prev => ({
+                          ...prev,
+                          captureSystemAudio: e.target.checked
+                        }))}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="system-audio" className="ml-2 text-sm text-gray-700">
+                        Capture system audio (desktop sounds, music, videos)
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        id="microphone-audio"
+                        type="checkbox"
+                        checked={audioOptions.captureMicrophone}
+                        onChange={(e) => setAudioOptions(prev => ({
+                          ...prev,
+                          captureMicrophone: e.target.checked
+                        }))}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="microphone-audio" className="ml-2 text-sm text-gray-700">
+                        Capture microphone audio
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <label className="text-sm text-gray-700">Audio Quality:</label>
+                      <select
+                        value={audioOptions.audioQuality}
+                        onChange={(e) => setAudioOptions(prev => ({
+                          ...prev,
+                          audioQuality: e.target.value
+                        }))}
+                        className="text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="low">Low (16kHz)</option>
+                        <option value="medium">Medium (24kHz)</option>
+                        <option value="high">High (48kHz)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Audio Status */}
+              {isSharing && hasAudio && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-green-700 font-medium">
+                      Audio is being captured and shared
+                    </span>
+                    <button
+                      onClick={() => screenCaptureService.toggleAudio()}
+                      className="ml-3 text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded"
+                    >
+                      Toggle Audio
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -248,10 +333,13 @@ const StudentDashboard = () => {
               </h3>
               <div className="text-sm text-gray-600 space-y-2">
                 <p>• Make sure you're connected to the server (green indicator)</p>
-                <p>• Click "Start Sharing" to begin screen sharing</p>
-                <p>• Your screen will be visible to administrators in real-time</p>
+                <p>• Configure audio options before starting (system audio, microphone, quality)</p>
+                <p>• Click "Start Sharing" to begin screen and audio sharing</p>
+                <p>• Your screen and audio will be visible/audible to administrators in real-time</p>
+                <p>• You can toggle audio on/off during sharing without stopping screen share</p>
                 <p>• You can stop sharing at any time by clicking "Stop Sharing"</p>
                 <p>• If you close the browser tab, screen sharing will automatically stop</p>
+                <p className="text-orange-600 font-medium">• Note: Audio capture requires Chrome/Edge browser and user permission</p>
               </div>
             </div>
           </div>

@@ -7,28 +7,84 @@ class ScreenCaptureService {
     this.video = null;
   }
 
-  async startScreenCapture() {
+  async startScreenCapture(options = {}) {
     try {
       console.log('ScreenCapture: Requesting screen capture...');
 
-      // Request screen capture permission with simpler constraints
+      // Audio capture options
+      const {
+        captureSystemAudio = true,    // Capture desktop/system audio
+        captureMicrophone = false,    // Capture microphone audio
+        audioQuality = 'high'         // 'low', 'medium', 'high'
+      } = options;
+
+      // Configure audio constraints
+      let audioConstraints = false;
+      if (captureSystemAudio) {
+        audioConstraints = {
+          echoCancellation: false,
+          noiseSuppression: false,
+          sampleRate: audioQuality === 'high' ? 48000 : audioQuality === 'medium' ? 24000 : 16000,
+          channelCount: 2
+        };
+      }
+
+      // Request screen capture permission with audio
       this.mediaStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           width: { ideal: 1280, max: 1920 },
           height: { ideal: 720, max: 1080 },
           frameRate: { ideal: 5, max: 10 }
         },
-        audio: false
+        audio: audioConstraints
       });
+
+      // If microphone is also requested, we need to get it separately and combine
+      if (captureMicrophone) {
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              sampleRate: audioQuality === 'high' ? 48000 : audioQuality === 'medium' ? 24000 : 16000
+            }
+          });
+
+          // Combine screen stream with microphone stream
+          const combinedStream = new MediaStream([
+            ...this.mediaStream.getVideoTracks(),
+            ...this.mediaStream.getAudioTracks(),
+            ...micStream.getAudioTracks()
+          ]);
+
+          this.mediaStream = combinedStream;
+          console.log('ScreenCapture: Combined screen + microphone audio');
+        } catch (micError) {
+          console.warn('ScreenCapture: Could not access microphone:', micError);
+          // Continue with just screen audio
+        }
+      }
 
       console.log('ScreenCapture: Got media stream:', this.mediaStream);
       console.log('ScreenCapture: Video tracks:', this.mediaStream.getVideoTracks());
+      console.log('ScreenCapture: Audio tracks:', this.mediaStream.getAudioTracks());
+
+      // Log audio track details
+      this.mediaStream.getAudioTracks().forEach((track, index) => {
+        console.log(`ScreenCapture: Audio track ${index}:`, {
+          label: track.label,
+          kind: track.kind,
+          enabled: track.enabled,
+          settings: track.getSettings()
+        });
+      });
 
       // Create video element to display the stream
       this.video = document.createElement('video');
       this.video.autoplay = true;
-      this.video.muted = true;
+      this.video.muted = false; // Allow audio playback for monitoring
       this.video.playsInline = true;
+      this.video.volume = 0.1; // Low volume for monitoring
 
       // Set up the video source
       this.video.srcObject = this.mediaStream;
@@ -228,8 +284,54 @@ class ScreenCaptureService {
     return this.mediaStream;
   }
 
+  // Get audio tracks information
+  getAudioInfo() {
+    if (!this.mediaStream) return null;
+
+    const audioTracks = this.mediaStream.getAudioTracks();
+    return audioTracks.map(track => ({
+      label: track.label,
+      kind: track.kind,
+      enabled: track.enabled,
+      settings: track.getSettings()
+    }));
+  }
+
+  // Toggle audio on/off
+  toggleAudio(enabled = null) {
+    if (!this.mediaStream) return false;
+
+    const audioTracks = this.mediaStream.getAudioTracks();
+    audioTracks.forEach(track => {
+      track.enabled = enabled !== null ? enabled : !track.enabled;
+    });
+
+    return audioTracks.length > 0;
+  }
+
+  // Check if audio is being captured
+  hasAudio() {
+    return this.mediaStream && this.mediaStream.getAudioTracks().length > 0;
+  }
+
+  // Get audio level (requires Web Audio API)
+  getAudioLevel() {
+    // This would require implementing Web Audio API analysis
+    // For now, just return if audio is enabled
+    if (!this.hasAudio()) return 0;
+
+    const audioTracks = this.mediaStream.getAudioTracks();
+    return audioTracks.some(track => track.enabled) ? 1 : 0;
+  }
+
   // Check if browser supports screen capture
   static isSupported() {
+    return navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia;
+  }
+
+  // Check if browser supports audio capture with screen sharing
+  static isAudioSupported() {
+    // Most modern browsers support audio with getDisplayMedia
     return navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia;
   }
 }
